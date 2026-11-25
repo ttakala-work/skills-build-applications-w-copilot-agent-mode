@@ -46,7 +46,8 @@ export async function createTeam(input: unknown) {
   const data = input as Record<string, unknown>;
   if (typeof data.name !== 'string' || !data.name.trim()) throw httpError(400, 'Team name is required');
   if (typeof data.mascot !== 'string' || !data.mascot.trim()) throw httpError(400, 'Team mascot is required');
-  const members = Array.isArray(data.members) ? data.members : [];
+  const members = data.members === undefined ? [] : data.members;
+  if (!Array.isArray(members)) throw httpError(400, 'Team members must be an array');
   if (!members.every((member) => objectId(member))) throw httpError(400, 'Team members must be valid user IDs');
   if (members.length) {
     const count = await User.countDocuments({ _id: { $in: members } });
@@ -71,7 +72,7 @@ export async function getLeaderboard() {
 }
 
 export async function suggestWorkouts(userEmail: string) {
-  const user = await User.findOne({ email: decodeURIComponent(userEmail) });
+  const user = await User.findOne({ email: userEmail });
   if (!user) throw httpError(404, 'User not found');
   const recent = await Activity.find({ user: user._id }).sort({ occurredAt: -1 }).limit(5).lean();
   const recentType = recent[0]?.type;
@@ -84,7 +85,6 @@ export async function suggestWorkouts(userEmail: string) {
     const bMatch = b.focus === focus ? 0 : 1;
     return aMatch - bMatch;
   });
-  if (!ordered.length) throw httpError(404, 'No workout suggestions found');
   return ordered.map((workout) => ({
     ...workout,
     reason: recentType
